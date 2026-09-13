@@ -1,1 +1,333 @@
+```html
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ستور كيم - STORE GAME</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        gaming: {
+                            dark: '#0f172a',
+                            card: '#1e293b',
+                            accent: '#06b6d4',
+                            active: '#22c55e',
+                            text: '#f8fafc'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        .stick-bound {
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        .stick-dot {
+            transition: all 0.05s ease-out;
+            /* Center by default */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .button-pressed {
+            background-color: #06b6d4;
+            color: #0f172a;
+            transform: scale(0.95);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
 
+    <header class="text-center mb-8">
+        <h1 class="text-3xl md:text-5xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-l from-cyan-400 to-blue-500">
+            <i class="fas fa-gamepad mr-2"></i> ستور كيم - STORE GAME
+        </h1>
+        <p class="text-slate-200 text-xl font-bold mb-2">بغداد - الدورة</p>
+        <p class="text-slate-400 text-sm">أداة فحص أجهزة PlayStation و Xbox</p>
+    </header>
+
+    <main class="flex-grow flex flex-col items-center w-full max-w-6xl mx-auto">
+        
+        <div id="connection-prompt" class="bg-gaming-card border-2 border-dashed border-slate-600 rounded-2xl p-10 text-center w-full shadow-lg transition-all duration-300">
+            <i class="fas fa-plug text-6xl text-slate-500 mb-4 animate-pulse"></i>
+            <h2 class="text-2xl font-bold text-slate-300 mb-2">في انتظار أداة التحكم...</h2>
+            <p class="text-slate-400">يرجى توصيل أداة التحكم الخاصة بك (عن طريق USB أو بلوتوث) والضغط على <strong class="text-gaming-accent">أي زر</strong> للبدء.</p>
+        </div>
+
+        <div id="gamepads-container" class="w-full flex flex-col gap-8 hidden">
+            <!-- Gamepads will be injected here dynamically by JS -->
+        </div>
+
+    </main>
+
+    <footer class="mt-12 text-center text-slate-500 text-sm">
+        <p>تم بناء هذه الأداة باستخدام HTML5 Gamepad API</p>
+    </footer>
+
+    <script>
+        const promptEl = document.getElementById('connection-prompt');
+        const containerEl = document.getElementById('gamepads-container');
+        let requestAnimationFrameId = null;
+
+        // Standard mapping for controller buttons
+        const buttonNames = {
+            0: "A / ✖ (Cross)",
+            1: "B / ◯ (Circle)",
+            2: "X / ◼ (Square)",
+            3: "Y / ▲ (Triangle)",
+            4: "L1 / LB",
+            5: "R1 / RB",
+            6: "L2 / LT",
+            7: "R2 / RT",
+            8: "Select / Share",
+            9: "Start / Options",
+            10: "L3 (Left Stick Click)",
+            11: "R3 (Right Stick Click)",
+            12: "D-Pad فوق",
+            13: "D-Pad تحت",
+            14: "D-Pad يسار",
+            15: "D-Pad يمين",
+            16: "Home / PS",
+            17: "Touchpad (PS)"
+        };
+
+        window.addEventListener("gamepadconnected", (e) => {
+            console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+                e.gamepad.index, e.gamepad.id,
+                e.gamepad.buttons.length, e.gamepad.axes.length);
+            
+            promptEl.classList.add('hidden');
+            containerEl.classList.remove('hidden');
+            
+            createGamepadUI(e.gamepad);
+            
+            // Start the update loop if not already running
+            if (!requestAnimationFrameId) {
+                requestAnimationFrameId = requestAnimationFrame(updateGamepads);
+            }
+        });
+
+        window.addEventListener("gamepaddisconnected", (e) => {
+            console.log("Gamepad disconnected from index %d: %s",
+                e.gamepad.index, e.gamepad.id);
+            
+            removeGamepadUI(e.gamepad);
+            
+            // If no gamepads left, show prompt and stop loop
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+            let hasGamepads = false;
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i]) hasGamepads = true;
+            }
+            
+            if (!hasGamepads) {
+                promptEl.classList.remove('hidden');
+                containerEl.classList.add('hidden');
+                cancelAnimationFrame(requestAnimationFrameId);
+                requestAnimationFrameId = null;
+            }
+        });
+
+        function createGamepadUI(gamepad) {
+            const padId = `gamepad-${gamepad.index}`;
+            if (document.getElementById(padId)) return;
+
+            const div = document.createElement('div');
+            div.id = padId;
+            div.className = 'bg-gaming-card border border-slate-700 rounded-2xl p-6 shadow-2xl relative overflow-hidden';
+            
+            // Add a decorative accent line at the top
+            const decor = document.createElement('div');
+            decor.className = 'absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cyan-400 to-blue-500';
+            div.appendChild(decor);
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'mb-6 flex flex-col md:flex-row md:items-center justify-between border-b border-slate-700 pb-4';
+            header.innerHTML = `
+                <div>
+                    <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i class="fas fa-gamepad text-gaming-accent"></i> 
+                        معرف الأداة: ${gamepad.index}
+                    </h3>
+                    <p class="text-sm text-slate-400 mt-1 font-mono text-left dir-ltr" style="direction: ltr;">${gamepad.id}</p>
+                </div>
+                <div class="mt-4 md:mt-0 px-3 py-1 bg-green-900/30 text-green-400 border border-green-800 rounded-full text-sm font-semibold">
+                    متصل
+                </div>
+            `;
+            div.appendChild(header);
+
+            // Layout Container (Sticks on left, Buttons on right)
+            const layout = document.createElement('div');
+            layout.className = 'grid grid-cols-1 lg:grid-cols-3 gap-8';
+
+            const axesContainer = document.createElement('div');
+            axesContainer.className = 'lg:col-span-1 bg-slate-800/50 p-4 rounded-xl border border-slate-700';
+            axesContainer.innerHTML = '<h4 class="text-lg font-semibold mb-4 text-center text-slate-200">العصي التناظرية (Sticks)</h4>';
+            
+            const sticksWrapper = document.createElement('div');
+            sticksWrapper.className = 'flex justify-around items-center h-48';
+            
+            // Left Stick
+            sticksWrapper.innerHTML += `
+                <div class="flex flex-col items-center">
+                    <div class="stick-bound w-24 h-24 rounded-full bg-slate-900 border-2 border-slate-600 relative mb-3">
+                        <div id="${padId}-stick-0" class="stick-dot absolute w-8 h-8 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.6)]"></div>
+                    </div>
+                    <span class="text-xs text-slate-400 font-mono" id="${padId}-axes-left">X: 0.00<br>Y: 0.00</span>
+                    <span class="text-sm font-bold mt-1 text-slate-300">اليسار (L)</span>
+                </div>
+            `;
+
+            // Right Stick
+            sticksWrapper.innerHTML += `
+                <div class="flex flex-col items-center">
+                    <div class="stick-bound w-24 h-24 rounded-full bg-slate-900 border-2 border-slate-600 relative mb-3">
+                        <div id="${padId}-stick-1" class="stick-dot absolute w-8 h-8 rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.6)]"></div>
+                    </div>
+                    <span class="text-xs text-slate-400 font-mono" id="${padId}-axes-right">X: 0.00<br>Y: 0.00</span>
+                    <span class="text-sm font-bold mt-1 text-slate-300">اليمين (R)</span>
+                </div>
+            `;
+            axesContainer.appendChild(sticksWrapper);
+            layout.appendChild(axesContainer);
+
+            const buttonsContainer = document.createElement('div');
+            buttonsContainer.className = 'lg:col-span-2 bg-slate-800/50 p-4 rounded-xl border border-slate-700';
+            buttonsContainer.innerHTML = '<h4 class="text-lg font-semibold mb-4 text-slate-200">الأزرار (Buttons)</h4>';
+            
+            const buttonsGrid = document.createElement('div');
+            buttonsGrid.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3';
+            
+            for (let i = 0; i < gamepad.buttons.length; i++) {
+                const btnName = buttonNames[i] || `الزر ${i}`;
+                const btnEl = document.createElement('div');
+                btnEl.id = `${padId}-btn-${i}`;
+                btnEl.className = 'bg-slate-700 border border-slate-600 rounded-lg p-3 text-center transition-all duration-75 flex flex-col justify-center items-center h-20';
+                btnEl.innerHTML = `
+                    <span class="text-sm font-bold mb-1">${btnName}</span>
+                    <span class="text-xs text-slate-400 font-mono value-text">0.00</span>
+                `;
+                buttonsGrid.appendChild(btnEl);
+            }
+            
+            buttonsContainer.appendChild(buttonsGrid);
+            layout.appendChild(buttonsContainer);
+            div.appendChild(layout);
+            
+            containerEl.appendChild(div);
+        }
+
+        function removeGamepadUI(gamepad) {
+            const padId = `gamepad-${gamepad.index}`;
+            const el = document.getElementById(padId);
+            if (el) {
+                el.remove();
+            }
+        }
+
+        function updateGamepads() {
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : []);
+            
+            for (let i = 0; i < gamepads.length; i++) {
+                const gp = gamepads[i];
+                if (gp) {
+                    const padId = `gamepad-${gp.index}`;
+                    const gpUI = document.getElementById(padId);
+                    
+                    if (gpUI) {
+                        // Update Buttons
+                        for (let b = 0; b < gp.buttons.length; b++) {
+                            const btnEl = document.getElementById(`${padId}-btn-${b}`);
+                            if (btnEl) {
+                                const val = gp.buttons[b].value;
+                                const pressed = gp.buttons[b].pressed;
+                                
+                                const valText = btnEl.querySelector('.value-text');
+                                valText.textContent = val.toFixed(2);
+
+                                if (pressed) {
+                                    btnEl.classList.add('button-pressed');
+                                    btnEl.classList.remove('bg-slate-700', 'border-slate-600');
+                                    valText.classList.remove('text-slate-400');
+                                    valText.classList.add('text-slate-900');
+                                } else {
+                                    btnEl.classList.remove('button-pressed');
+                                    btnEl.classList.add('bg-slate-700', 'border-slate-600');
+                                    valText.classList.add('text-slate-400');
+                                    valText.classList.remove('text-slate-900');
+                                }
+                            }
+                        }
+
+                        // Update Axes (Sticks)
+                        if (gp.axes.length >= 4) {
+                            // Left Stick (Axes 0 & 1)
+                            const lsDot = document.getElementById(`${padId}-stick-0`);
+                            const lsText = document.getElementById(`${padId}-axes-left`);
+                            if (lsDot && lsText) {
+                                // Gamepad axis is -1 (left/top) to 1 (right/bottom)
+                                // CSS left/top percentages: -1 -> 0%, 0 -> 50%, 1 -> 100%
+                                let x = gp.axes[0];
+                                let y = gp.axes[1];
+                                
+                                // Deadzone handling for cleaner display
+                                if(Math.abs(x) < 0.05) x = 0;
+                                if(Math.abs(y) < 0.05) y = 0;
+
+                                lsDot.style.left = `${((x + 1) / 2) * 100}%`;
+                                lsDot.style.top = `${((y + 1) / 2) * 100}%`;
+                                lsText.innerHTML = `X: ${x.toFixed(2)}<br>Y: ${y.toFixed(2)}`;
+                            }
+
+                            // Right Stick (Axes 2 & 3)
+                            const rsDot = document.getElementById(`${padId}-stick-1`);
+                            const rsText = document.getElementById(`${padId}-axes-right`);
+                            if (rsDot && rsText) {
+                                let x = gp.axes[2];
+                                let y = gp.axes[3];
+                                
+                                // Deadzone handling
+                                if(Math.abs(x) < 0.05) x = 0;
+                                if(Math.abs(y) < 0.05) y = 0;
+
+                                rsDot.style.left = `${((x + 1) / 2) * 100}%`;
+                                rsDot.style.top = `${((y + 1) / 2) * 100}%`;
+                                rsText.innerHTML = `X: ${x.toFixed(2)}<br>Y: ${y.toFixed(2)}`;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Loop recursively
+            requestAnimationFrameId = requestAnimationFrame(updateGamepads);
+        }
+    </script>
+</body>
+</html>
+```
